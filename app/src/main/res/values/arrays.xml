@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <array name="icons">
+        <item>@drawable/ic_bomb</item>
+        <item>@drawable/ic_joker1</item>
+        <item>@drawable/ic_joker2</item>
+        <item>@drawable/ic_joker3</item>
+        <item>@drawable/ic_joker4</item>
+    </array>
+</resources>

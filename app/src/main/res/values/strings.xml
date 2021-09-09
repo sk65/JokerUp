@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Joker Up</string>
+    <string name="lives">Lives:</string>
+    <string name="score">Score:</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="restart">restart</string>
+    <string name="exit">Exit</string>
+
+</resources>
