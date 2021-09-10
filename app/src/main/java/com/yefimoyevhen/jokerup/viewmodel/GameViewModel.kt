@@ -7,7 +7,6 @@ import android.widget.ImageView
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.yefimoyevhen.jokerup.R
 import com.yefimoyevhen.jokerup.util.BOMB_ICON_TAG
 import com.yefimoyevhen.jokerup.util.Tracks
@@ -28,11 +27,10 @@ constructor(
 ) : ViewModel() {
     private var isPause = false
 
-    /***/
+
     private val _isGameRestart = MutableLiveData(false)
     val isGameRestart: LiveData<Boolean> = _isGameRestart
 
-    /***/
     private val _isGameOver = MutableLiveData(false)
     val isGameOver: LiveData<Boolean> = _isGameOver
 
@@ -49,6 +47,7 @@ constructor(
     val score: LiveData<String> = _score
 
     private val icons: MutableSet<ImageView> = HashSet()
+
     private var livesCounter = AtomicInteger()
     private var scoresCounter = AtomicInteger()
 
@@ -61,6 +60,7 @@ constructor(
     )
 
     private lateinit var mainLoopJob: CompletableJob
+
     private lateinit var containers: Array<FrameLayout>
 
     private fun refreshValues() {
@@ -76,11 +76,15 @@ constructor(
     fun startGame(containers: Array<FrameLayout>) {
         refreshValues()
         this.containers = containers
-        startMainLoop()
+        startGameLoop()
     }
 
-    private fun startMainLoop() {
-        viewModelScope.launch(Main + mainLoopJob) {
+    /**
+     * Starts game loop depends on random number stars one of five
+     * script for displaying falling icons.
+     * */
+    private fun startGameLoop() {
+        CoroutineScope(mainLoopJob).launch() {
             while (isActive) {
                 if (!isPause) {
                     delay((700L..2000L).random())
@@ -96,6 +100,10 @@ constructor(
         }
     }
 
+    /**
+     * In this scenario, the icons fall diagonally.
+     * Depending on the randomness, they can change the order (from left to right or right to left)
+     * */
     private suspend fun startFifthCase(scope: CoroutineScope) {
         val random = (100L..500L).random()
         when ((0..1).random()) {
@@ -114,16 +122,19 @@ constructor(
         }
     }
 
+    /**In this scenario, two icons fall from left.*/
     private suspend fun startThirdCase(scope: CoroutineScope) {
         manageTrack(scope, createIcon(), containers[0])
         manageTrack(scope, createIcon(), containers[1])
     }
 
+    /**In this scenario, two icons fall from right.*/
     private suspend fun startFourthCase(scope: CoroutineScope) {
         manageTrack(scope, createIcon(), containers[2])
         manageTrack(scope, createIcon(), containers[3])
     }
 
+    /** In this scenario, only single icon falls random. */
     private suspend fun startFirstCase(scope: CoroutineScope) {
         when (Tracks.values()[getRandomTrack()]) {
             Tracks.TRACK_1 -> manageTrack(scope, createIcon(), containers[0])
@@ -133,11 +144,16 @@ constructor(
         }
     }
 
+    /** In this scenario, icons fall in a single line. */
     private suspend fun startSecondCase(scope: CoroutineScope) =
         containers.forEach { container ->
             manageTrack(scope, createIcon(), container)
         }
 
+    /**
+     * It creates an icon. Set for the icon start location on the screen
+     * and random image resource. If image recourse is a bomb it is assigned a bomb teg.
+     * */
     private fun createIcon(): ImageView {
         val layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -157,12 +173,16 @@ constructor(
         return icon
     }
 
+    /**
+     * It adds an icon to current layout, sets onClickListener to icon and
+     * start to move icon
+     * */
     private suspend fun manageTrack(
         scope: CoroutineScope,
         icon: ImageView,
         container: FrameLayout
     ) {
-        container.addView(icon)
+        withContext(Main) { container.addView(icon) }
         icons.add(icon)
         val movingIconJob = Job()
         icon.setOnIconClickListener(movingIconJob, container)
@@ -170,6 +190,7 @@ constructor(
             moveIcon(this, container, icon)
         }
     }
+
 
     private fun ImageView.setOnIconClickListener(job: CompletableJob, container: FrameLayout) {
         setOnClickListener { icon ->
@@ -204,23 +225,30 @@ constructor(
                     if (icon.tag != BOMB_ICON_TAG) {
                         checkLivesAndDecrement()
                     }
-                    container.removeView(icon)
+                    withContext(Main) {
+                        container.removeView(icon)
+                    }
                     icons.remove(icon)
                     scope.cancel()
                 }
                 delay(15L)
-                icon.y += 5
+                withContext(Main) {
+                    icon.y += 5
+                }
+
             }
         }
     }
 
     private fun stopGame() {
         mainLoopJob.cancel()
-        icons.forEach { icon ->
-            (icon.parent as ViewManager).removeView(icon)
+        CoroutineScope(Main).launch {
+            icons.forEach { icon ->
+                (icon.parent as ViewManager).removeView(icon)
+            }
+            icons.clear()
+            _isDialogShouldBeShow.postValue(true)
         }
-        icons.clear()
-        _isDialogShouldBeShow.postValue(true)
     }
 
     fun gameOver() {
@@ -238,6 +266,5 @@ constructor(
     fun resumeGame() {
         isPause = false
     }
-
 
 }

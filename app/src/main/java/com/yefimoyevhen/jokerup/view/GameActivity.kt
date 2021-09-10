@@ -25,12 +25,12 @@ class GameActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         Log.i("dev", "onPause")
-      //  gameViewModel.pauseGame()
+        gameViewModel.pauseGame()
     }
 
     override fun onResume() {
         super.onResume()
         Log.i("dev", "onResume")
-       // gameViewModel.resumeGame()
+        gameViewModel.resumeGame()
     }
 }
