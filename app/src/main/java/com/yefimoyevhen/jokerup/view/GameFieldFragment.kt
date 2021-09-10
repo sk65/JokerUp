@@ -1,6 +1,7 @@
 package com.yefimoyevhen.jokerup.view
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,8 +12,10 @@ import com.yefimoyevhen.jokerup.databinding.FragmentGameFieldBinding
 import com.yefimoyevhen.jokerup.util.GoogleAdMobManager
 import com.yefimoyevhen.jokerup.util.dialog.GameOverDialogFragment
 import com.yefimoyevhen.jokerup.viewmodel.GameViewModel
+import dagger.hilt.android.AndroidEntryPoint
 
-class GameFieldFragment : Fragment(), () -> Unit {
+@AndroidEntryPoint
+class GameFieldFragment : Fragment() {
 
     private lateinit var gameViewModel: GameViewModel
 
@@ -41,15 +44,16 @@ class GameFieldFragment : Fragment(), () -> Unit {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _adManager = GoogleAdMobManager(
-            this,
             requireActivity(),
             binding.adView
-        )
+        ) {
+            gameViewModel.startGame(getContainers())
+        }
 
         initObservers()
-        gameViewModel.startGame(requireContext(), getContainers())
-
+        gameViewModel.startGame(getContainers())
     }
+
 
 
     override fun onDestroyView() {
@@ -58,11 +62,24 @@ class GameFieldFragment : Fragment(), () -> Unit {
         _adManager = null
     }
 
+    private fun showDialog() =
+        GameOverDialogFragment().show(
+            requireActivity().supportFragmentManager,
+            GameOverDialogFragment.TAG
+        )
+
+
     private fun getContainers(): Array<FrameLayout> =
         arrayOf(binding.track1, binding.track2, binding.track3, binding.track4)
 
 
     private fun initObservers() {
+
+        gameViewModel.isDialogShouldBeShow.observe(viewLifecycleOwner) { isDialogShouldBeShow ->
+            if (isDialogShouldBeShow == true) {
+                showDialog()
+            }
+        }
 
         gameViewModel.lives.observe(viewLifecycleOwner) { numOfLives ->
             binding.livesContainer.text = numOfLives
@@ -72,20 +89,15 @@ class GameFieldFragment : Fragment(), () -> Unit {
             binding.scoreConteiner.text = score
         }
 
-        gameViewModel.isGameOver.observe(viewLifecycleOwner) {
-            if (it == true) {
-                gameViewModel.stopGame()
-                requireActivity().finish()
+        gameViewModel.isGameOver.observe(viewLifecycleOwner) { isGameOver ->
+            if (isGameOver == true) {
+                requireActivity().finishAndRemoveTask();
             }
         }
-        gameViewModel.isGameRestart.observe(viewLifecycleOwner) {
-            if (it == true) {
-                gameViewModel.stopGame()
+        gameViewModel.isGameRestart.observe(viewLifecycleOwner) { isGameRestart ->
+            if (isGameRestart == true) {
                 adMobManager.showInterstitialAd()
             }
         }
     }
-
-    override fun invoke() = gameViewModel.startGame(requireContext(), getContainers())
-
 }

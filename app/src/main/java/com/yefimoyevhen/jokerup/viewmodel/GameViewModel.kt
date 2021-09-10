@@ -1,24 +1,44 @@
 package com.yefimoyevhen.jokerup.viewmodel
 
 import android.content.Context
+import android.view.ViewManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.yefimoyevhen.jokerup.util.*
+import com.yefimoyevhen.jokerup.R
+import com.yefimoyevhen.jokerup.util.BOMB_ICON_TAG
+import com.yefimoyevhen.jokerup.util.Tracks
+import com.yefimoyevhen.jokerup.util.getRandomTrack
+import com.yefimoyevhen.jokerup.util.getScreenHeight
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.Main
 import java.util.concurrent.atomic.AtomicInteger
+import javax.inject.Inject
 
-class GameViewModel : ViewModel() {
+@HiltViewModel
+class GameViewModel
+@Inject
+constructor(
+    @ApplicationContext val context: Context
+) : ViewModel() {
+    private var isPause = false
 
-
+    /***/
     private val _isGameRestart = MutableLiveData(false)
     val isGameRestart: LiveData<Boolean> = _isGameRestart
 
+    /***/
     private val _isGameOver = MutableLiveData(false)
     val isGameOver: LiveData<Boolean> = _isGameOver
+
+    /***/
+    private val _isDialogShouldBeShow = MutableLiveData(false)
+    val isDialogShouldBeShow: LiveData<Boolean> = _isDialogShouldBeShow
 
     /**number of lives*/
     private val _lives = MutableLiveData("3")
@@ -28,82 +48,196 @@ class GameViewModel : ViewModel() {
     private val _score = MutableLiveData("0")
     val score: LiveData<String> = _score
 
-    val livesCounter = AtomicInteger(3)
+    private val icons: MutableSet<ImageView> = HashSet()
+    private var livesCounter = AtomicInteger()
+    private var scoresCounter = AtomicInteger()
 
-    fun gameOver() = _isGameOver.postValue(true)
-    fun restart() = _isGameRestart.postValue(true)
+    private val imagesResource = arrayOf(
+        R.drawable.ic_bomb,
+        R.drawable.ic_joker1,
+        R.drawable.ic_joker2,
+        R.drawable.ic_joker3,
+        R.drawable.ic_joker4
+    )
 
-    private val job = Job()
+    private lateinit var mainLoopJob: CompletableJob
+    private lateinit var containers: Array<FrameLayout>
 
-    fun stopGame() = job.cancel()
+    private fun refreshValues() {
+        mainLoopJob = Job()
+        livesCounter = AtomicInteger(3)
+        scoresCounter = AtomicInteger(0)
+        _lives.postValue(livesCounter.get().toString())
+        _score.postValue(scoresCounter.get().toString())
+        _isGameRestart.postValue(false)
+        _isDialogShouldBeShow.postValue(false)
+    }
 
+    fun startGame(containers: Array<FrameLayout>) {
+        refreshValues()
+        this.containers = containers
+        startMainLoop()
+    }
 
-    fun startGame(context: Context, containers: Array<FrameLayout>) {
-        //_isGameRestart.postValue(false)
-        viewModelScope.launch(Dispatchers.Main + job) {
-
+    private fun startMainLoop() {
+        viewModelScope.launch(Main + mainLoopJob) {
             while (isActive) {
-                if (livesCounter.get() != 0) {
-                    delay(1000L)
-                    val icon = createIcon(context)
-                    when (Tracks.values()[getRandomTrack()]) {
-                        Tracks.TRACK_1 -> manageIcon(icon, this, containers[0])
-                        Tracks.TRACK_2 -> manageIcon(icon, this, containers[1])
-                        Tracks.TRACK_3 -> manageIcon(icon, this, containers[2])
-                        Tracks.TRACK_4 -> manageIcon(icon, this, containers[3])
+                if (!isPause) {
+                    delay((700L..2000L).random())
+                    when ((0..4).random()) {
+                        0 -> startFirstCase(this)
+                        1 -> startSecondCase(this)
+                        2 -> startThirdCase(this)
+                        3 -> startFourthCase(this)
+                        4 -> startFifthCase(this)
                     }
-                } else {
-                    stopGame()
-
                 }
             }
+        }
+    }
+
+    private suspend fun startFifthCase(scope: CoroutineScope) {
+        val random = (100L..500L).random()
+        when ((0..1).random()) {
+            0 -> {
+                containers.forEach { container ->
+                    delay(random)
+                    manageTrack(scope, createIcon(), container)
+                }
+            }
+            1 -> {
+                containers.reversed().forEach { container ->
+                    delay(random)
+                    manageTrack(scope, createIcon(), container)
+                }
+            }
+        }
+    }
+
+    private suspend fun startThirdCase(scope: CoroutineScope) {
+        manageTrack(scope, createIcon(), containers[0])
+        manageTrack(scope, createIcon(), containers[1])
+    }
+
+    private suspend fun startFourthCase(scope: CoroutineScope) {
+        manageTrack(scope, createIcon(), containers[2])
+        manageTrack(scope, createIcon(), containers[3])
+    }
+
+    private suspend fun startFirstCase(scope: CoroutineScope) {
+        when (Tracks.values()[getRandomTrack()]) {
+            Tracks.TRACK_1 -> manageTrack(scope, createIcon(), containers[0])
+            Tracks.TRACK_2 -> manageTrack(scope, createIcon(), containers[1])
+            Tracks.TRACK_3 -> manageTrack(scope, createIcon(), containers[2])
+            Tracks.TRACK_4 -> manageTrack(scope, createIcon(), containers[0])
+        }
+    }
+
+    private suspend fun startSecondCase(scope: CoroutineScope) =
+        containers.forEach { container ->
+            manageTrack(scope, createIcon(), container)
+        }
+
+    private fun createIcon(): ImageView {
+        val layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        )
+
+        val icon = ImageView(context)
+        icon.apply {
+            this.layoutParams = layoutParams
+            val random = (0..imagesResource.lastIndex).random()
+            val imageRes = imagesResource[random]
+            setImageResource(imageRes)
+            if (random == 0) {
+                icon.tag = BOMB_ICON_TAG
+            }
+        }
+        return icon
+    }
+
+    private suspend fun manageTrack(
+        scope: CoroutineScope,
+        icon: ImageView,
+        container: FrameLayout
+    ) {
+        container.addView(icon)
+        icons.add(icon)
+        val movingIconJob = Job()
+        icon.setOnIconClickListener(movingIconJob, container)
+        scope.launch(movingIconJob) {
+            moveIcon(this, container, icon)
+        }
+    }
+
+    private fun ImageView.setOnIconClickListener(job: CompletableJob, container: FrameLayout) {
+        setOnClickListener { icon ->
+            if (icon.tag == BOMB_ICON_TAG) {
+                checkLivesAndDecrement()
+            } else {
+                val score = scoresCounter.incrementAndGet()
+                _score.postValue(score.toString())
+            }
+            container.removeView(icon)
+            icons.remove(icon)
+            job.cancel()
+        }
+    }
+
+    private fun checkLivesAndDecrement() {
+        val livesCount = livesCounter.decrementAndGet()
+        _lives.postValue(livesCount.toString())
+        if (livesCount <= 0) {
+            stopGame()
         }
     }
 
     private suspend fun moveIcon(
         scope: CoroutineScope,
         container: FrameLayout,
-        icon: ImageView,
-        speed: Long
+        icon: ImageView
     ) {
-        if (scope.isActive) {
-            delay(speed)
-            if (icon.y > getScreenHeight()) {
-                if (icon.tag != BOMB_ICON_TAG) {
-                    var value = lives.value!!.toInt()
-                    _lives.postValue((--value).toString())
+        while (scope.isActive && mainLoopJob.isActive) {
+            if (!isPause) {
+                if (icon.y > getScreenHeight() - 120) {
+                    if (icon.tag != BOMB_ICON_TAG) {
+                        checkLivesAndDecrement()
+                    }
+                    container.removeView(icon)
+                    icons.remove(icon)
+                    scope.cancel()
                 }
-                container.removeView(icon)
-                scope.cancel()
+                delay(15L)
+                icon.y += 5
             }
-            icon.y += SHIFT
         }
     }
 
-    private suspend fun manageIcon(icon: ImageView, scope: CoroutineScope, container: FrameLayout) {
-        if (this.job.isActive) {
-            val job = Job()
-            container.addView(icon)
-            if (icon.tag == BOMB_ICON_TAG) {
-                icon.setOnClickListener {
-                    container.removeView(icon)
-                    job.cancel()
-                    var value = lives.value!!.toInt()
-                    _lives.postValue((--value).toString())
-                }
-            } else {
-                icon.setOnClickListener {
-                    container.removeView(icon)
-                    var scoreValue = score.value!!.toInt()
-                    _score.postValue((++scoreValue).toString())
-                    job.cancel()
-                }
-            }
-            scope.launch(job) {
-                while (isActive) {
-                    moveIcon(this, container, icon, 10)
-                }
-            }
+    private fun stopGame() {
+        mainLoopJob.cancel()
+        icons.forEach { icon ->
+            (icon.parent as ViewManager).removeView(icon)
         }
+        icons.clear()
+        _isDialogShouldBeShow.postValue(true)
     }
+
+    fun gameOver() {
+        _isGameOver.postValue(true)
+    }
+
+    fun restartGame() {
+        _isGameRestart.postValue(true)
+    }
+
+    fun pauseGame() {
+        isPause = true
+    }
+
+    fun resumeGame() {
+        isPause = false
+    }
+
+
 }

@@ -6,10 +6,11 @@ import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 
 class GoogleAdMobManager(
-    private val callback: () -> Unit,
+
     private val activity: Activity,
     private val addView: AdView,
-    private var mInterstitialAd: InterstitialAd? = null
+    private var mInterstitialAd: InterstitialAd? = null,
+    private val callback: () -> Unit
 ) {
     init {
         MobileAds.initialize(activity) {}
@@ -49,8 +50,6 @@ class GoogleAdMobManager(
                 override fun onAdFailedToShowFullScreenContent(p0: AdError) {
                     super.onAdFailedToShowFullScreenContent(p0)
                     loadGoogleAdmob()
-                    callback.invoke()
-                    // gameViewModel.startGame()
                 }
 
                 override fun onAdShowedFullScreenContent() {
@@ -61,14 +60,12 @@ class GoogleAdMobManager(
                 override fun onAdDismissedFullScreenContent() {
                     super.onAdDismissedFullScreenContent()
                     callback.invoke()
-                    // gameViewModel.startGame()
                 }
 
             }
             mInterstitialAd?.show(activity)
         } else {
             callback.invoke()
-//            gameViewModel.startGame()
         }
     }
 

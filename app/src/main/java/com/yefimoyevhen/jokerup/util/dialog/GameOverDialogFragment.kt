@@ -51,7 +51,7 @@ class GameOverDialogFragment : DialogFragment() {
             dismiss()
         }
         binding.btnRestart.setOnClickListener {
-            gameViewModel.restart()
+            gameViewModel.restartGame()
             dismiss()
         }
     }
